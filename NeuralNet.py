@@ -92,7 +92,8 @@ class NeuralNetwork():
 
     def compute_cost(self, AL, Y):
         m = Y.shape[1]
-        cost = (1./m) * np.sum(-np.dot(Y, np.log(AL).T) - np.dot(1-Y, np.log(1-AL).T))
+        logprobs = (Y * np.log(AL)) + ((1 - Y) * np.log(1 - AL))
+        cost = - np.sum(logprobs) / m
         cost = np.squeeze(cost)
 
         return cost
