@@ -44,19 +44,20 @@ class NeuralNetwork():
 
         return dZ
 
-    def linear_forward(self, A_prev, W, b):
-        Z = np.dot(W, A_prev) + b
-        cache = (A_prev, W, b)
+    def linear_forward(self, A, W, b):
+        Z = W.dot(A) + b
+        cache = (A, W, b)
 
         return Z, cache
 
     def linear_activation_forward(self, A_prev, W, b, activation):
-        Z, linear_cache = self.linear_forward(A_prev, W, b)
 
         if activation == "sigmoid":
+            Z, linear_cache = self.linear_forward(A_prev, W, b)
             A, activation_cache = self.sigmoid(Z)
 
         if activation == "relu":
+            Z, linear_cache = self.linear_forward(A_prev, W, b)
             A, activation_cache = self.relu(Z)
 
         cache = (linear_cache, activation_cache)
@@ -102,9 +103,9 @@ class NeuralNetwork():
         A_prev, W, b = cache                        # Cache from linear_forward function
         m = A_prev.shape[1]
 
-        dW = np.dot(dZ, A_prev.T) / m
-        db = np.sum(dZ, axis=1, keepdims=True) / m
-        dA_prev = np.dot(cache[1].T, dZ)
+        dW = 1./m * np.dot(dZ, A_prev.T)
+        db = 1./m * np.sum(dZ, axis=1, keepdims=True)
+        dA_prev = np.dot(W.T, dZ)
 
         return dA_prev, dW, db
 
@@ -132,21 +133,26 @@ class NeuralNetwork():
         dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
 
         current_cache = caches[-1]                  # Cacher for the last layer
-        grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = self.linear_activation_backward(dAL, current_cache, "sigmoid")
+        grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = self.linear_activation_backward(dAL, current_cache, activation="sigmoid")
 
         for l in reversed(range(L-1)):
             current_cache = caches[l]
-            grads["dA" + str(l)], grads["dW" + str(l + 1)], grads["db" + str(l + 1)] = self.linear_activation_backward(grads["dA" + str(l + 1)], current_cache, "relu")
-
+            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], current_cache, activation="relu")
+            grads["dA" + str(l)] = dA_prev_temp
+            grads["dW" + str(l + 1)] = dW_temp
+            grads["db" + str(l + 1)] = db_temp
+            
         return grads
 
-    def update_parameters(self, grads, learning_rate):
+    def update_parameters(self, grads, parameters, learning_rate):
 
-        L = len(self.parameters) // 2
+        L = len(parameters) // 2
 
         for l in range(L):
-            self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - grads["dW" + str(l+1)] * learning_rate
-            self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - grads["db" + str(l+1)] * learning_rate
+            parameters["W" + str(l+1)] = parameters["W" + str(l+1)] - learning_rate * grads["dW" + str(l+1)]
+            parameters["b" + str(l+1)] = parameters["b" + str(l+1)] - learning_rate * grads["db" + str(l+1)]
+
+        return parameters
 
     def fit(self, X, Y, learning_rate=0.0075, num_iterations=3000, print_cost=100, show_cost=True):
         """
@@ -166,11 +172,11 @@ class NeuralNetwork():
 
         show_cost (`boolean`): To determine if it should show the costs of every 100 iterations on graph.
         """
-        for i in range(num_iterations):
+        for i in range(0, num_iterations):
             AL, caches = self.predict(X, True)
             cost = self.compute_cost(AL, Y)
             grads = self.model_backward(AL, Y, caches)
-            self.update_parameters(grads, learning_rate)
+            self.parameters = self.update_parameters(grads, self.parameters, learning_rate)
 
             if print_cost != -1 and i % print_cost == 0:
                 print("Cost after iteration %i: %f" % (i, cost))
